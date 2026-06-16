@@ -1,0 +1,22 @@
+{
+  "name": "imitation-gate",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "The Imitation Gate — a solstice border-checkpoint deduction game for the DEV June Solstice Game Jam 2026.",
+  "scripts": {
+    "build": "node build.js",
+    "test": "node build.js --test"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "zustand": "^5.0.3"
+  },
+  "devDependencies": {
+    "esbuild": "^0.24.2",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "typescript": "^5.7.2"
+  }
+}

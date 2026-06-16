@@ -1,0 +1,16 @@
+{
+  "name": "imitation-gate-server",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Cloud Run proxy for The Imitation Gate — holds the Gemini key as a secret, serves the leaderboard.",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "start": "node index.mjs",
+    "dev": "node --env-file=.env index.mjs"
+  },
+  "dependencies": {
+    "@google-cloud/firestore": "^7.10.0",
+    "express": "^4.21.2"
+  }
+}

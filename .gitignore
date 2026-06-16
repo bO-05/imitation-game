@@ -1,0 +1,10 @@
+node_modules/
+dist-bundle.js
+dist-bundle.css
+.test-bundle.cjs
+tools/
+.DS_Store
+server/node_modules/
+gate.config.local.json
+server/public/
+.env
