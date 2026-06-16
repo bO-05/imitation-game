@@ -81,8 +81,13 @@ function underGlobalCap() {
 }
 const clientIp = (req) => (req.headers["x-forwarded-for"] || "").toString().split(",")[0].trim() || req.ip || "anon";
 
-/* ── health ── */
-app.get("/api/health", (_req, res) => res.json({ ok: true, gemini: !!GEMINI_KEY, model: MODEL, day: voiceDay, voiceCount, cap: DAILY_VOICE_CAP }));
+/* ── health (also probes Firestore so leaderboard problems are visible) ── */
+app.get("/api/health", async (_req, res) => {
+  let firestore = false, firestoreError;
+  try { await db.collection("_health").limit(1).get(); firestore = true; }
+  catch (e) { firestoreError = String(e?.code || e?.message || "error"); }
+  res.json({ ok: true, gemini: !!GEMINI_KEY, model: MODEL, firestore, firestoreError, day: voiceDay, voiceCount, cap: DAILY_VOICE_CAP });
+});
 
 /* ── Gemini proxy ── */
 function buildPrompt(p) {
@@ -161,8 +166,8 @@ app.post("/api/score", async (req, res) => {
   try {
     await db.collection("scores").add({ name, mode, score, total, day, at: Firestore.Timestamp.now() });
     res.json({ ok: true });
-  } catch {
-    res.status(503).json({ error: "store" });
+  } catch (e) {
+    res.status(503).json({ error: "store", detail: String(e?.code || e?.message || "error") });
   }
 });
 
@@ -170,13 +175,19 @@ app.get("/api/leaderboard", async (req, res) => {
   const mode = req.query.mode === "daily" ? "daily" : "endless";
   const day = typeof req.query.day === "string" && /^\d{4}-\d{2}-\d{2}$/.test(req.query.day) ? req.query.day : null;
   try {
+    // Equality filters only (no orderBy) → NO composite index required. Sort in
+    // memory; jam-scale volume makes this trivial and bulletproof.
     let q = db.collection("scores").where("mode", "==", mode);
     if (mode === "daily") q = q.where("day", "==", day || utcDay());
-    const snap = await q.orderBy("score", "desc").limit(20).get();
-    const rows = snap.docs.map((d) => { const x = d.data(); return { name: x.name, score: x.score, total: x.total }; });
+    const snap = await q.limit(500).get();
+    const rows = snap.docs
+      .map((d) => { const x = d.data(); return { name: x.name, score: x.score, total: x.total }; })
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 20);
     res.json({ mode, day: day || utcDay(), rows });
-  } catch {
-    res.json({ mode, rows: [] }); // fail soft — UI shows "leaderboard unavailable"
+  } catch (e) {
+    // Fail soft for the UI, but surface the cause when hitting the endpoint directly.
+    res.json({ mode, rows: [], error: String(e?.code || e?.message || "error") });
   }
 });
 

@@ -140,7 +140,7 @@ function ShareButton({ text }: { text: string }) {
 function RunLeaderboard({ mode, score, total }: { mode: "daily" | "endless"; score: number; total: number }) {
   const [name, setName] = useState(() => { try { return localStorage.getItem("imitation-gate-name") || ""; } catch { return ""; } });
   const [rows, setRows] = useState<LbRow[] | null>(null);
-  const [state, setState] = useState<"idle" | "submitting" | "done">("idle");
+  const [state, setState] = useState<"idle" | "submitting" | "done" | "error">("idle");
   const day = todayKey();
   const load = () => fetchLeaderboard(mode, mode === "daily" ? day : undefined).then(setRows);
   useEffect(() => { load(); }, []);
@@ -149,18 +149,21 @@ function RunLeaderboard({ mode, score, total }: { mode: "daily" | "endless"; sco
     setState("submitting");
     try { localStorage.setItem("imitation-gate-name", name); } catch {}
     const ok = await submitScore({ name: name || "Examiner", mode, score, total, day });
-    setState("done");
-    if (ok) load();
+    if (ok) { setState("done"); load(); }
+    else { setState("error"); }
   };
   return (
     <div className="lb">
       <div className="lb-h">{mode === "daily" ? `DAILY LEADERBOARD · ${day}` : "LONG SHIFT LEADERBOARD"}</div>
-      {state !== "done" ? (
+      {state === "done" ? (
+        <div className="lb-done">Submitted as “{name || "Examiner"}”. ✓</div>
+      ) : (
         <div className="lb-submit">
           <input className="key-input" maxLength={20} placeholder="Your examiner name" value={name} onChange={(e) => setName(e.target.value)} />
-          <button className="btn" disabled={state === "submitting"} onClick={submit}>{state === "submitting" ? "SENDING…" : "SUBMIT SCORE"}</button>
+          <button className="btn" disabled={state === "submitting"} onClick={submit}>{state === "submitting" ? "SENDING…" : state === "error" ? "RETRY" : "SUBMIT SCORE"}</button>
         </div>
-      ) : <div className="lb-done">Submitted as “{name || "Examiner"}”. ✓</div>}
+      )}
+      {state === "error" && <div className="lb-empty" style={{ color: "#ef7b72" }}>Couldn't reach the leaderboard — your score is safe locally. Try again in a moment.</div>}
       <div className="lb-rows">
         {rows === null ? <div className="lb-empty">loading…</div>
           : rows.length === 0 ? <div className="lb-empty">No scores yet — be the first.</div>

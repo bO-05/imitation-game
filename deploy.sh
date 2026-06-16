@@ -25,7 +25,7 @@ gcloud services enable run.googleapis.com firestore.googleapis.com \
   secretmanager.googleapis.com cloudbuild.googleapis.com >/dev/null
 
 echo "→ Ensuring Firestore database (ignore error if it already exists)…"
-gcloud firestore databases create --location="nam5" 2>/dev/null || true
+gcloud firestore databases create --location="nam5" --type=firestore-native 2>/dev/null || true
 
 echo "→ Storing the Gemini key in Secret Manager…"
 if gcloud secrets describe gemini-key >/dev/null 2>&1; then
@@ -53,10 +53,19 @@ echo "→ Locking the API to your own URL (so no other site can use your key)…
 gcloud run services update imitation-gate --region "$REGION" \
   --update-env-vars "ALLOWED_ORIGINS=$URL" >/dev/null
 
-# Grant Firestore access to the runtime service account if needed
+# Grant Firestore access to the runtime service account. Cloud Run uses the
+# project's DEFAULT compute SA unless a custom one is set, and `describe` reports
+# it as empty in that case — so resolve it from the project number explicitly.
+echo "→ Granting the runtime service account Firestore access…"
 SA=$(gcloud run services describe imitation-gate --region "$REGION" --format='value(spec.template.spec.serviceAccountName)')
-[ -n "$SA" ] && gcloud projects add-iam-policy-binding "$PROJECT" \
-  --member="serviceAccount:$SA" --role="roles/datastore.user" >/dev/null 2>&1 || true
+if [ -z "$SA" ]; then
+  NUM=$(gcloud projects describe "$PROJECT" --format='value(projectNumber)')
+  SA="${NUM}-compute@developer.gserviceaccount.com"
+fi
+gcloud projects add-iam-policy-binding "$PROJECT" \
+  --member="serviceAccount:$SA" --role="roles/datastore.user" >/dev/null \
+  && echo "   granted roles/datastore.user to $SA" \
+  || echo "   ⚠ could not grant to $SA — do it once in the Console (IAM → grant Cloud Datastore User)."
 
 echo ""
 echo "✅ Live: $URL"
